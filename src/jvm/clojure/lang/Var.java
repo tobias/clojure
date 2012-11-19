@@ -70,12 +70,7 @@ static class Frame{
 
 }
 
-static final ThreadLocal<Frame> dvals = new ThreadLocal<Frame>(){
-
-	protected Frame initialValue(){
-		return new Frame();
-	}
-};
+static final ThreadLocal<Frame> dvals = new ThreadLocal<Frame>();
 
 static public volatile int rev = 0;
 
@@ -95,7 +90,7 @@ public final Namespace ns;
 
 //IPersistentMap _meta;
 
-public static Object getThreadBindingFrame(){
+public static Frame getThreadBindingFrame(){
 	Frame f = dvals.get();
 	if(f != null)
 		return f;
@@ -194,7 +189,7 @@ Var(Namespace ns, Symbol sym, Object root){
 }
 
 public boolean isBound(){
-	return hasRoot() || (threadBound.get() && dvals.get().bindings.containsKey(this));
+    return hasRoot() || (threadBound.get() && getThreadBindingFrame().bindings.containsKey(this));
 }
 
 final public Object get(){
@@ -343,7 +338,7 @@ synchronized public Object alterRoot(IFn fn, ISeq args) {
 }
 
 public static void pushThreadBindings(Associative bindings){
-	Frame f = dvals.get();
+        Frame f = getThreadBindingFrame();
 	Associative bmap = f.bindings;
 	for(ISeq bs = bindings.seq(); bs != null; bs = bs.next())
 		{
@@ -359,14 +354,20 @@ public static void pushThreadBindings(Associative bindings){
 }
 
 public static void popThreadBindings(){
-	Frame f = dvals.get();
+        Frame f = getThreadBindingFrame();
 	if(f.prev == null)
 		throw new IllegalStateException("Pop without matching push");
-	dvals.set(f.prev);
+        f = f.prev;
+        if (f.prev == null) {
+            dvals.remove();
+        } else {
+            dvals.set(f);
+        }
+
 }
 
 public static Associative getThreadBindings(){
-	Frame f = dvals.get();
+        Frame f = getThreadBindingFrame();
 	IPersistentMap ret = PersistentHashMap.EMPTY;
 	for(ISeq bs = f.bindings.seq(); bs != null; bs = bs.next())
 		{
@@ -381,7 +382,7 @@ public static Associative getThreadBindings(){
 public final TBox getThreadBinding(){
 	if(threadBound.get())
 		{
-		IMapEntry e = dvals.get().bindings.entryAt(this);
+                IMapEntry e = getThreadBindingFrame().bindings.entryAt(this);
 		if(e != null)
 			return (TBox) e.val();
 		}
